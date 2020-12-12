@@ -1,6 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import image
+from sklearn.svm import LinearSVC
+from skimage.feature import ORB, match_descriptors
+from sklearn.metrics import accuracy_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from skimage.morphology import square
 from skimage.filters import median
 from skimage.feature import hog
@@ -10,6 +15,7 @@ from skimage.filters import unsharp_mask
 import skimage
 import os
 
+from PIL import Image
 
 
 
@@ -42,40 +48,41 @@ y_test = []
 i =0
 
 #ładowanie zdjęć do list
+print("loading pictures into memory")
 for path in train_images_normal_path:
-    im = np.array(image.imread('./archive/TrainImages/Normal/'+path))
+    im = np.asarray(Image.open('./archive/TrainImages/Normal/'+path))
     if im.ndim == 3:
-        dim = im.shape[2]
-        im = np.sum(im, axis=2)
+        dim = 3
+        im = np.sum(im, axis=2).astype(np.float)
         im = im/((2*8)**dim)
-    im = (im * 255).astype(np.uint8)
+        im = (im * 255).astype(np.uint8)
     X_train.append(im)
     y_train.append(labels[0])
 for path in train_images_covid_path:
-    im = np.array(image.imread('./archive/TrainImages/COVID-19/'+path))
+    im = np.asarray(Image.open('./archive/TrainImages/COVID-19/'+path))
     if im.ndim == 3:
-        dim = im.shape[2]
-        im = np.sum(im, axis=2)
+        dim = 3
+        im = np.sum(im, axis=2).astype(np.float)
         im = im/((2*8)**dim)
-    im = (im * 255).astype(np.uint8)
+        im = (im * 255).astype(np.uint8)
     X_train.append(im)
     y_train.append(labels[1])
 for path in test_images_normal_path:
-    im = np.array(image.imread('./archive/TestImages/Normal/'+path))
+    im = np.asarray(Image.open('./archive/TestImages/Normal/'+path))
     if im.ndim == 3:
-        dim = im.shape[2]
-        im = np.sum(im, axis=2)
+        dim = 3
+        im = np.sum(im, axis=2).astype(np.float)
         im = im/((2*8)**dim)
-    im = (im * 255).astype(np.uint8)
+        im = (im * 255).astype(np.uint8)
     X_test.append(im)
     y_test.append(labels[0])
 for path in test_images_covid_path:
-    im = np.array(image.imread("./archive/TestImages/COVID-19/"+path))
+    im = np.asarray(Image.open("./archive/TestImages/COVID-19/"+path))
     if im.ndim == 3:
-        dim = im.shape[2]
-        im = np.sum(im, axis=2)
+        dim =3
+        im = np.sum(im, axis=2).astype(np.float)
         im = im/((2*8)**dim)
-    im = (im * 255).astype(np.uint8)
+        im = (im * 255).astype(np.uint8)
     X_test.append(im)
     y_test.append(labels[1])
 
@@ -84,8 +91,6 @@ print(len(X_train))
 print(len(X_test))
 print(len(y_train))
 print(len(y_test))
-
-
 
 
 
@@ -112,34 +117,100 @@ print("starting processing")
 X_train_processed = np.zeros(shape=(len(X_train),min_height,min_width), dtype="uint8")
 X_test_processed = np.zeros(shape=(len(X_test),min_height,min_width), dtype="uint8")
 
-
 for i in range(len(X_train)):
     print(i)
     scaled = resize(X_train[i], output_shape=(min_height, min_width))
     scaled = unsharp_mask(scaled, radius=1, amount=1)
     scaled = (scaled*255).astype("uint8")
-    print(scaled)
     X_train_processed[i] = scaled
 for i in range(len(X_test)):
     print(i)
     scaled = resize(X_test[i], output_shape=(min_height, min_width))
     scaled = unsharp_mask(scaled, radius=1, amount=1)
     scaled = (scaled*255).astype("uint8")
-    print(scaled)
     X_test_processed[i] = scaled
 
 print("finished processing")
 
-fig, ax = plt.subplots(2, 2, figsize=(10,20))
-ax = ax.ravel()
+#experyment nr 1
+
+print("finding features")
+orb_train_extracted = []
+orb_test_extracted = []
+
+detector_extractor1 = ORB(n_keypoints=50, fast_threshold=0.01)
+
+
+daisy_train_extr = []
+daisy_test_extr = []
+daisy_train_extr_proccessed = []
+daisy_test_extr_proccessed = []
+
+
+
+for img in X_train:
+    descs, descs_img = daisy(img, step=int(img.shape[0]/2), radius=int(img.shape[1]/5), rings=2, histograms=8,
+                             orientations=8, visualize=True)
+    daisy_train_extr.append(np.asarray(descs).reshape(-1))
+    fig, ax = plt.subplots()
+    ax.axis('off')
+    ax.imshow(descs_img)
+    descs_num = descs.shape[0] * descs.shape[1]
+    ax.set_title('%i DAISY descriptors extracted:' % descs_num)
+    plt.show()
+
+
+
+for img in X_test:
+    descs, descs_img = daisy(img, step=int(img.shape[0] / 2), radius=int(img.shape[1] / 5), rings=2, histograms=8,
+                             orientations=8, visualize=True)
+
+    daisy_test_extr.append(np.asarray(descs).reshape(-1))
+
+
+for img in X_train_processed:
+    descs, descs_img = daisy(img, step=int(img.shape[0]/2), radius=int(img.shape[1]/5), rings=2, histograms=8,
+                             orientations=8, visualize=True)
+    daisy_train_extr_proccessed.append(np.asarray(descs).reshape(-1))
+
+
+
+for img in X_test_processed:
+    descs, descs_img = daisy(img, step=int(img.shape[0] / 2), radius=int(img.shape[1] / 5), rings=2, histograms=8,
+                             orientations=8, visualize=True)
+
+    daisy_test_extr_proccessed.append(np.asarray(descs).reshape(-1))
+
+
+print("training")
+svm_raw = LinearSVC()
+svm_proccessed = LinearSVC()
+
+svm_raw.fit(daisy_train_extr, y_train)
+svm_proccessed.fit(daisy_train_extr_proccessed, y_train)
+
+print("result")
+
+
+svm_raw_preddict = svm_proccessed.predict(daisy_test_extr)
+print(accuracy_score(y_test, svm_raw_preddict))
+svm_processed_preddict = svm_proccessed.predict(daisy_test_extr_proccessed)
+print(accuracy_score(y_test, svm_processed_preddict))
+
+
 
 print(X_train_processed[289])
+
+fig, ax = plt.subplots(2, 2, figsize=(10,20))
+ax = ax.ravel()
 
 ax[0].imshow(X_train[289])
 ax[1].imshow(X_train_processed[289])
 ax[2].imshow(X_test[0])
 ax[3].imshow(X_test_processed[0])
 plt.show()
+
+
 
 
 
