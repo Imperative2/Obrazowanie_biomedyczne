@@ -14,6 +14,7 @@ from skimage.transform import resize
 from skimage.filters import unsharp_mask
 import skimage
 import os
+from skimage.feature import multiblock_lbp
 
 from PIL import Image
 
@@ -114,21 +115,67 @@ for image in X_test:
 print("min width: ",min_width)
 
 print("starting processing")
-X_train_processed = np.zeros(shape=(len(X_train),min_height,min_width), dtype="uint8")
-X_test_processed = np.zeros(shape=(len(X_test),min_height,min_width), dtype="uint8")
 
-for i in range(len(X_train)):
+X_train_all = np.zeros(shape=(3, len(X_train), min_height, min_width), dtype="uint8")
+X_test_all = np.zeros(shape=(3, len(X_test), min_height, min_width), dtype="uint8")
+
+for i in range(X_train_all.shape[1]):
     print(i)
     scaled = resize(X_train[i], output_shape=(min_height, min_width))
-    scaled = unsharp_mask(scaled, radius=1, amount=1)
-    scaled = (scaled*255).astype("uint8")
-    X_train_processed[i] = scaled
-for i in range(len(X_test)):
+
+    X_train_all[0][i] = (scaled * 255).astype("uint8")
+
+    sharpness = unsharp_mask(scaled, radius=1, amount=1)
+    X_train_all[1][i] = (sharpness * 255).astype("uint8")
+
+    med = median(scaled, square(3))
+    X_train_all[2][i] = (med * 255).astype("uint8")
+
+for i in range(X_test_all.shape[1]):
     print(i)
     scaled = resize(X_test[i], output_shape=(min_height, min_width))
-    scaled = unsharp_mask(scaled, radius=1, amount=1)
-    scaled = (scaled*255).astype("uint8")
-    X_test_processed[i] = scaled
+
+    X_test_all[0][i] = (scaled * 255).astype("uint8")
+
+    sharpness = unsharp_mask(scaled, radius=1, amount=1)
+    X_test_all[1][i] = (sharpness * 255).astype("uint8")
+
+    med = median(scaled, square(3))
+    X_test_all[2][i] = (med * 255).astype("uint8")
+
+
+
+
+for i in range(X_train_all.shape[0]):
+    extractors_count = 5
+    X_train_processed = X_train_all[i]
+    X_test_processed = X_test_all[i]
+    train_features_extracted = [[] * extractors_count]
+    test_features_extracted = [[] * extractors_count]
+    print(test_features_extracted)
+    for img in X_train_processed:
+
+        # DAISY
+        descs = daisy(img, step=int(img.shape[0] / 2), radius=int(img.shape[1] / 5), rings=2, histograms=8,
+                             orientations=8, visualize=False)
+        train_features_extracted[0].append(np.asarray(descs).reshape(-1))
+
+        #HOG
+        fd, hog_image = hog(img, orientations=8, pixels_per_cell=(int(img.shape[0]/10), int(img.shape[1]/10)),
+                            cells_per_block=(1,1), visualize=True)
+
+        #ORB
+        orbDetector = ORB(n_keypoints=500, fast_threshold=0.08)
+        res = orbDetector.detect_and_extract(img).descriptors
+        print(res)
+
+
+        # print(np.asarray(fd).shape)
+        # print(fd)
+        fig, ax = plt.subplots()
+        ax.imshow(res)
+        plt.show()
+
 
 print("finished processing")
 
