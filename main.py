@@ -203,7 +203,6 @@ for i in range(X_test_all.shape[1]):
 exp_1_2_results = np.zeros(shape=(3,5))
 
 for i in range(X_train_all.shape[0]):
-    extractors_count = 5
     X_train_processed = X_train_all[i]
     X_test_processed = X_test_all[i]
 
@@ -223,15 +222,15 @@ for i in range(X_train_all.shape[0]):
     thread_orb = Thread(target=calculate_orb, args=(X_train_processed, orb_train))
     thread_orb.start()
 
-    brief_train=[]
-    thread_brief = Thread(target=calculate_brief, args=(X_train_processed, brief_train))
-    thread_brief.start()
+    # brief_train=[]
+    # thread_brief = Thread(target=calculate_brief, args=(X_train_processed, brief_train))
+    # thread_brief.start()
 
     thread_daisy.join()
     thread_hog.join()
     thread_lbp.join()
     thread_orb.join()
-    thread_brief.join()
+    # thread_brief.join()
 
     daisy_test = []
     thread_daisy = Thread(target=calculate_daisy, args=(X_test_processed, daisy_test))
@@ -249,15 +248,15 @@ for i in range(X_train_all.shape[0]):
     thread_orb = Thread(target=calculate_orb, args=(X_test_processed, orb_test))
     thread_orb.start()
 
-    brief_test=[]
-    thread_brief = Thread(target=calculate_brief, args=(X_test_processed, brief_test))
-    thread_brief.start()
+    # brief_test=[]
+    # thread_brief = Thread(target=calculate_brief, args=(X_test_processed, brief_test))
+    # thread_brief.start()
 
     thread_daisy.join()
     thread_hog.join()
     thread_lbp.join()
     thread_orb.join()
-    thread_orb.join()
+    # thread_brief.join()
 
     #training
     svm_daisy = LinearSVC(max_iter=10000)
@@ -303,16 +302,56 @@ for i in range(X_train_all.shape[0]):
     print("LBP prediction: ", accuracy_score(y_test, lbp_predict))
     exp_1_2_results[i][3] =  accuracy_score(y_test, lbp_predict)
 
-    print("training BRIEF")
-    start = timeit.timeit()
-    svm_brief.fit(brief_train,y_train)
-    brief_predict = svm_LBP.predict(brief_test)
-    end = timeit.timeit()
-    print(end-start)
-    print("BRIEF prediction: ", accuracy_score(y_test, brief_predict))
-    exp_1_2_results[i][3] =  accuracy_score(y_test, brief_predict)
+    # print("training BRIEF")
+    # start = timeit.timeit()
+    # svm_brief.fit(brief_train,y_train)
+    # brief_predict = svm_LBP.predict(brief_test)
+    # end = timeit.timeit()
+    # print(end-start)
+    # print("BRIEF prediction: ", accuracy_score(y_test, brief_predict))
+    # exp_1_2_results[i][3] =  accuracy_score(y_test, brief_predict)
 
 
 #eksperyment 3 badanie argumentów deskryptora
 
+exp_3_results = np.zeros(shape=(3*3*3*3))
 
+orientations = [4,9,16]
+pixels_per_cell = [(4,4),(8,8),(16,16)]
+cells_per_block = [(1,1),(3,3),(9,9)]
+block_norms = ["L1","L2","L2-Hys"]
+
+i = 0
+
+for orientation in orientations:
+    for pixel_per_cell in pixels_per_cell:
+        for cell_per_block in cells_per_block:
+            for block_norm in block_norms:
+                X_train_processed = X_train_all[1]
+                X_test_processed = X_test_all[1]
+                hog_train = []
+                hog_test = []
+
+                for img in X_train_processed:
+                    fd = hog(img, orientations=orientation,
+                                        pixels_per_cell=pixel_per_cell,
+                                        cells_per_block=cells_per_block,block_norm=block_norm)
+                    hog_train.append(np.asarray(fd).reshape(-1))
+                for img in X_test_processed:
+                    fd = hog(img, orientations=orientation,
+                                        pixels_per_cell=pixel_per_cell,
+                                        cells_per_block=cells_per_block,block_norm=block_norm)
+                    hog_test.append(np.asarray(fd).reshape(-1))
+
+                svm_hog = LinearSVC(max_iter=10000)
+                print("training HOG")
+                start = timeit.timeit()
+                svm_hog.fit(hog_train, y_train)
+                hog_predict = svm_hog.predict(hog_test)
+                end = timeit.timeit()
+                print(end - start)
+                print("hog prediction: ", accuracy_score(y_test, hog_predict))
+                exp_3_results[i] = accuracy_score(y_test, hog_predict)
+                i+=1
+
+exp_3_results.reshape(shape=(3,3,3,3))
